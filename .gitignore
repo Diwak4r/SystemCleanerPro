@@ -1,0 +1,7 @@
+# Logs
+CleanerLogs/
+*.log
+
+# OS
+Thumbs.db
+desktop.ini
