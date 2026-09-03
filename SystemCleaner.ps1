@@ -888,6 +888,83 @@ function Clean-DeveloperCaches {
     Add-CategoryResult "Developer Tool Caches" $totalFreed
 }
 
+# --- AI & CLI Tool Caches (model weights, inference caches, agent temp data) ---
+
+function Clean-AICliCaches {
+    $totalFreed = [long]0
+
+    # Hugging Face hub cache (datasets + model blobs; safe to re-download)
+    $hfPaths = @(
+        (Join-Path $env:USERPROFILE ".cache\huggingface"),
+        (Join-Path $env:USERPROFILE ".cache\torch"),
+        (Join-Path $env:USERPROFILE ".cache\claude"),
+        (Join-Path $env:USERPROFILE ".cache\puppeteer"),
+        (Join-Path $env:USERPROFILE ".cache\ms-playwright-graal")
+    )
+    foreach ($p in $hfPaths) {
+        if (Test-Path $p) {
+            $freed = Remove-PathContents $p
+            if ($freed -gt 0) { Write-Status "Cache cleaned: $(Split-Path -Leaf $p)" "OK" $freed }
+            $totalFreed += $freed
+        }
+    }
+
+    # Ollama blob temp + partial downloads (models dir untouched)
+    $ollamaTmp = Join-Path $env:LOCALAPPDATA "Ollama\tests\cachedir"
+    if (Test-Path $ollamaTmp) {
+        $freed = Remove-PathContents $ollamaTmp
+        if ($freed -gt 0) { Write-Status "Ollama test cache cleaned" "OK" $freed }
+        $totalFreed += $freed
+    }
+
+    # pip tools: uv, ruff, mypy, pytest caches
+    $pyToolPaths = @(
+        (Join-Path $env:LOCALAPPDATA "uv\cache"),
+        (Join-Path $env:LOCALAPPDATA "ruff"),
+        (Join-Path $env:LOCALAPPDATA "mypy"),
+        (Join-Path $env:LOCALAPPDATA "pytest")
+    )
+    $pyFreed = [long]0
+    foreach ($p in $pyToolPaths) {
+        if (Test-Path $p) { $pyFreed += Remove-PathContents $p }
+    }
+    if ($pyFreed -gt 0) {
+        Write-Status "Python tool caches (uv/ruff/mypy/pytest) cleaned" "OK" $pyFreed
+        $totalFreed += $pyFreed
+    }
+
+    # Playwright browser builds are big; only prune stale marker files, not browsers in use
+    $pwCache = Join-Path $env:USERPROFILE "AppData\Local\ms-playwright"
+    if (Test-Path $pwCache) {
+        $freed = [long]0
+        Get-ChildItem $pwCache -Directory -Filter "*.tmp" -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            $freed += Remove-PathContents $_.FullName
+        }
+        if ($freed -gt 0) { Write-Status "Playwright temp builds cleaned" "OK" $freed }
+        $totalFreed += $freed
+    }
+
+    # Node-based CLI agents: ts-node, eslint, turbo, vitest, jest temp caches
+    $jsToolPaths = @(
+        (Join-Path $env:LOCALAPPDATA "eslint"),
+        (Join-Path $env:LOCALAPPDATA "turbo"),
+        (Join-Path $env:USERPROFILE ".ts-node")
+    )
+    $jsFreed = [long]0
+    foreach ($p in $jsToolPaths) {
+        if (Test-Path $p) { $jsFreed += Remove-PathContents $p }
+    }
+    if ($jsFreed -gt 0) {
+        Write-Status "JS tool caches (eslint/turbo/ts-node) cleaned" "OK" $jsFreed
+        $totalFreed += $jsFreed
+    }
+
+    if ($totalFreed -eq 0) {
+        Write-Status "AI/CLI caches - none found or already clean" "SKIP"
+    }
+    Add-CategoryResult "AI and CLI Tool Caches" $totalFreed
+}
+
 # --- Application Caches ---
 
 function Clean-ApplicationCaches {
@@ -996,6 +1073,26 @@ function Clean-ApplicationCaches {
         if ($freed -gt 0) {
             Write-Status "Java cache cleaned" "OK" $freed
             $totalFreed += $freed
+        }
+    }
+
+    # Electron app caches (Cursor, Slack, WhatsApp, Postman, Obsidian)
+    $electronApps = @(
+        @{ Name = "Cursor";    Base = (Join-Path $env:APPDATA "Cursor");   Dirs = @("Cache", "CachedData", "Code Cache", "GPUCache", "logs") },
+        @{ Name = "Slack";     Base = (Join-Path $env:APPDATA "Slack");    Dirs = @("Cache", "Code Cache", "GPUCache", "Service Worker\CacheStorage") },
+        @{ Name = "WhatsApp";  Base = (Join-Path $env:LOCALAPPDATA "WhatsApp"); Dirs = @("Cache", "Code Cache", "GPUCache") },
+        @{ Name = "Postman";   Base = (Join-Path $env:APPDATA "Postman");  Dirs = @("Cache", "Code Cache", "GPUCache", "logs") },
+        @{ Name = "Obsidian";  Base = (Join-Path $env:APPDATA "obsidian"); Dirs = @("Cache", "Code Cache", "GPUCache") }
+    )
+    foreach ($app in $electronApps) {
+        $appFreed = [long]0
+        foreach ($d in $app.Dirs) {
+            $p = Join-Path $app.Base $d
+            if (Test-Path $p) { $appFreed += Remove-PathContents $p }
+        }
+        if ($appFreed -gt 0) {
+            Write-Status "$($app.Name) cache cleaned" "OK" $appFreed
+            $totalFreed += $appFreed
         }
     }
 
@@ -1281,7 +1378,7 @@ function Invoke-DeepClean {
     # Run Quick first
     Invoke-QuickClean
 
-    $deepSteps = 13
+    $deepSteps = 14
     $i = 0
 
     Write-Host ""
@@ -1322,10 +1419,13 @@ function Invoke-DeepClean {
     Write-SectionHeader "D11/$deepSteps" "Developer Tool Caches"
     $i++; Clean-DeveloperCaches
 
-    Write-SectionHeader "D12/$deepSteps" "Application Caches"
+    Write-SectionHeader "D12/$deepSteps" "AI and CLI Tool Caches"
+    $i++; Clean-AICliCaches
+
+    Write-SectionHeader "D13/$deepSteps" "Application Caches"
     $i++; Clean-ApplicationCaches
 
-    Write-SectionHeader "D13/$deepSteps" "SSD TRIM Optimization"
+    Write-SectionHeader "D14/$deepSteps" "SSD TRIM Optimization"
     $i++; Invoke-SSDTrim
 }
 
