@@ -15,32 +15,41 @@
 
 ### Overview
 
-**SystemCleanerPro** is a transparent, open-source Windows maintenance solution built with **PowerShell** and **Batch**. Designed as a lightweight alternative to proprietary utility tools, it automates daily, weekly, and monthly system purges across 30+ categories without compromising user privacy or critical system registries.
+**SystemCleanerPro** is a transparent, open-source Windows maintenance tool built with **PowerShell** and **Batch**. It is a lightweight alternative to proprietary utilities, purging junk and cache across 40+ categories without touching your registry, credentials, or critical system files.
+
+**It is one-click.** Double-click the shortcut, approve the Administrator prompt, and it cleans automatically — no menu, no questions. You see live progress and a final summary, then it closes itself. A timestamped log is saved to your Desktop.
 
 ### Cleanup Execution Pipeline
 
 ```mermaid
 graph LR
-    Launch([SystemCleaner.bat]) --> Admin{Elevated?}
-    Admin -- No --> Request[Auto-Request Admin Privileges]
-    Admin -- Yes --> ModeSel[Select Cleaning Tier]
-    
-    ModeSel --> Quick[Quick Mode: Daily Temps & Caches]
-    ModeSel --> Deep[Deep Mode: Logs & Dev Artifacts]
-    ModeSel --> Full[Full Mode: DISM & Component Purge]
-    
-    Quick --> Log[Generate Timestamped Log]
-    Deep --> Log
-    Full --> Log
+    Launch([Double-click shortcut]) --> Admin{Elevated?}
+    Admin -- No --> Request[Auto-Request Admin]
+    Admin -- Yes --> Run[Auto-run DEEP clean]
+    Run --> Report[Live progress + summary]
+    Report --> Log[Timestamped log on Desktop]
+    Log --> Close[Auto-close]
 ```
 
-### Cleaning Tiers Matrix
+### What a one-click run cleans (DEEP, safe scope)
 
-| Tier | Duration | Scope & Target Artifacts |
+`%TEMP%` · `%SystemRoot%\Temp` · browser caches across **all** profiles (Chrome, Edge, Brave, Firefox, **Arc, Vivaldi, Opera / Opera GX**) · **GPU shader caches (NVIDIA / AMD / Intel)** · DirectX shader cache · icon/thumbnail caches · Recent files · DNS flush · crash dumps & error reports · Prefetch · Windows Update download cache · Delivery Optimization · Windows logs · memory dumps · Recycle Bin · font cache · Store cache · Defender scan data · BITS cache · developer caches (`npm`, `pip`, `yarn`, `NuGet`, `Maven`, …) · AI/CLI tool caches · app caches (VS Code, Discord, Teams, Spotify, …) · **print spooler queue** · SSD TRIM.
+
+It deliberately **skips** destructive operations so a one-click run can never harm your system.
+
+### Advanced (manual) override
+
+The one-click run always uses the safe **Deep** scope. Advanced users can pick a tier manually from a terminal:
+
+| Tier | Duration | Scope |
 | :--- | :--- | :--- |
-| **Quick Mode** | ~30s | `%TEMP%`, `%SystemRoot%\Temp`, Browser Caches (Chrome, Edge, Firefox, Brave), DNS Cache Flush, DirectX Shader Cache, Icon/Thumbnail Caches. |
-| **Deep Mode** | ~2-5m | Everything in Quick + Prefetch, Windows Update Downloads, Memory Dumps, Developer Caches (`npm`, `pip`, `yarn`, `NuGet`, `Maven`), Application Caches (`VS Code`, `Discord`, `Teams`). |
-| **Full Mode** | ~5-15m | Everything in Deep + DISM Component Cleanup, Event Log Clearing, `$Windows.~BT` Upgrade Residuals, Automated `cleanmgr`, Restore Point Pruning. |
+| `Quick` | ~30s | Temp, browser & shader caches, DNS, thumbnails, crash dumps. |
+| `Deep` *(default)* | ~2-5m | Everything above + Windows Update cache, dev/AI/app caches, GPU caches, recycle bin, print queue. |
+| `Full` | ~5-15m | Everything in Deep **+ destructive ops**: DISM, Event Log clearing, `Windows.old`, `cleanmgr`, Restore Point pruning, SFC. Windows.old and restore-point removal ask for confirmation. |
+
+```powershell
+.\SystemCleaner.bat Quick     # or Deep, or Full
+```
 
 ### Safety Principles
 
@@ -50,10 +59,14 @@ graph LR
 
 ### Quick Start
 
-```powershell
-# Run preset Quick mode from PowerShell (Admin required)
-.\SystemCleaner.bat Quick
-```
+1. Download / clone this folder.
+2. (Optional) Right-click `SystemCleaner.bat` → **Send to → Desktop (create shortcut)**.
+3. **Double-click** it. Approve the Administrator (UAC) prompt.
+4. That's it — it cleans, shows a summary, and closes itself. Log is on your Desktop under `CleanerLogs\`.
+
+### Disclaimer
+
+This tool is provided **"AS IS"**, without warranty of any kind. It deletes cache and temporary files. **You run it at your own risk.** The developer is **not responsible or liable** for any data loss, damage, or any consequence arising from its use. By running it you accept full responsibility.
 
 ---
 

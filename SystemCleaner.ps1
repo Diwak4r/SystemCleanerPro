@@ -1,25 +1,36 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    System Cleaner Pro - Professional-Grade Windows System Cleaner
+    System Cleaner Pro - One-click Windows cache & junk cleaner
 .DESCRIPTION
-    A comprehensive system cleaning tool with 3 tiered modes:
-      Quick  - Daily safe cleanup (~30 sec)  : temp files, browser cache, crash dumps
-      Deep   - Weekly cleanup    (~2-5 min)  : + Windows Update, dev caches, app caches, recycle bin
-      Full   - Monthly cleanup   (~5-15 min) : + DISM, event logs, Windows.old, restore points
+    Double-click the shortcut, approve the Administrator prompt, and it cleans
+    automatically - no menu, no questions. It shows live progress and a final
+    summary, then closes itself. A timestamped log is saved to your Desktop.
+
+    Default (one-click) run = DEEP, safe scope:
+      temp / %temp% / system temp, browser caches (Chrome, Edge, Brave, Firefox,
+      Arc, Vivaldi, Opera/GX), GPU shader caches (NVIDIA/AMD/Intel), prefetch,
+      recent files, DNS, thumbnails, crash dumps, Windows Update cache, delivery
+      optimization, recycle bin, dev/AI/CLI caches, app caches, print queue, more.
+    It deliberately SKIPS the destructive operations (DISM, event-log wipe,
+    Windows.old, restore-point cleanup, SFC). Those remain available only via the
+    explicit -Mode Full switch for advanced users running it manually.
     Features:
       - Space measurement before/after with per-category breakdown
-      - Process detection before cleaning app caches
       - Timestamped log files for every run
-      - Color-coded terminal output
       - Safe: try/catch around every operation, Test-Path before every delete
 .PARAMETER Mode
-    Cleaning mode: Quick, Deep, or Full. If omitted, shows interactive menu.
+    Advanced override. Quick, Deep, or Full. If omitted, runs Deep automatically
+    (the one-click default). The desktop shortcut passes nothing, so it runs Deep.
 .NOTES
-    Author : System Cleaner Pro
-    Date   : 2026-02-06
-    Version: 2.0.0
+    Author : Diwakar (github.com/Diwak4r)
+    Version: 3.0.0
     Safe   : Never touches System32, WinSxS, registry hives, credentials, boot files
+
+    DISCLAIMER: This tool is provided "AS IS", without warranty of any kind. It
+    deletes cache/temporary files. You run it at your own risk. The developer is
+    NOT responsible or liable for any data loss, damage, or any consequence
+    arising from its use. By running it you accept full responsibility.
 #>
 
 param(
@@ -31,7 +42,7 @@ param(
 # CONFIGURATION
 # ============================================================================
 
-$Script:Version          = "2.0.0"
+$Script:Version          = "3.0.0"
 $Script:LogDir           = Join-Path $env:USERPROFILE "Desktop\CleanerLogs"
 $Script:Timestamp        = Get-Date -Format "yyyy-MM-dd_HHmmss"
 $Script:LogFile          = Join-Path $Script:LogDir "SystemCleaner_$($Script:Timestamp).log"
@@ -322,53 +333,6 @@ function Show-Banner {
     Write-Host ""
 }
 
-function Show-ModeMenu {
-    Write-Host "  +------------------------------------------------------------+" -ForegroundColor DarkGray
-    Write-Host "  |  Select Cleaning Mode:                                     |" -ForegroundColor DarkGray
-    Write-Host "  |                                                            |" -ForegroundColor DarkGray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "[1] Quick " -ForegroundColor Green -NoNewline
-    Write-Host " - Daily safe cleanup             (~30 sec)   |" -ForegroundColor Gray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "        " -NoNewline
-    Write-Host "Temp, browser cache, crash dumps, DNS flush" -ForegroundColor DarkGray -NoNewline
-    Write-Host "    |" -ForegroundColor DarkGray
-    Write-Host "  |                                                            |" -ForegroundColor DarkGray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "[2] Deep  " -ForegroundColor Yellow -NoNewline
-    Write-Host " - Weekly thorough clean          (~2-5 min)  |" -ForegroundColor Gray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "        " -NoNewline
-    Write-Host "Quick + WinUpdate, dev/app caches, recycle   " -ForegroundColor DarkGray -NoNewline
-    Write-Host " |" -ForegroundColor DarkGray
-    Write-Host "  |                                                            |" -ForegroundColor DarkGray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "[3] Full  " -ForegroundColor Red -NoNewline
-    Write-Host " - Monthly deep system clean      (~5-15 min) |" -ForegroundColor Gray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "        " -NoNewline
-    Write-Host "Deep + DISM, event logs, Windows.old, SFC    " -ForegroundColor DarkGray -NoNewline
-    Write-Host " |" -ForegroundColor DarkGray
-    Write-Host "  |                                                            |" -ForegroundColor DarkGray
-    Write-Host "  |  " -ForegroundColor DarkGray -NoNewline
-    Write-Host "[Q] Quit" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "                                                |" -ForegroundColor DarkGray
-    Write-Host "  +------------------------------------------------------------+" -ForegroundColor DarkGray
-    Write-Host ""
-
-    do {
-        Write-Host "  Choice: " -ForegroundColor White -NoNewline
-        $choice = Read-Host
-        switch ($choice.ToUpper()) {
-            "1" { return "Quick" }
-            "2" { return "Deep" }
-            "3" { return "Full" }
-            "Q" { Write-Host "  Exiting..." -ForegroundColor DarkGray; exit 0 }
-            default { Write-Host "  Invalid choice. Enter 1, 2, 3, or Q." -ForegroundColor Red }
-        }
-    } while ($true)
-}
-
 # ============================================================================
 # QUICK MODE CLEANING FUNCTIONS
 # ============================================================================
@@ -415,6 +379,16 @@ function Clean-BrowserCaches {
             Name = "Brave Browser"
             Base = Join-Path $env:LOCALAPPDATA "BraveSoftware\Brave-Browser\User Data"
             Process = "brave"
+        },
+        @{
+            Name = "Arc"
+            Base = Join-Path $env:LOCALAPPDATA "Arc\User Data"
+            Process = "Arc"
+        },
+        @{
+            Name = "Vivaldi"
+            Base = Join-Path $env:LOCALAPPDATA "Vivaldi\User Data"
+            Process = "vivaldi"
         }
     )
 
@@ -468,6 +442,27 @@ function Clean-BrowserCaches {
             Write-Status "Firefox - no cache found" "SKIP"
         }
         $totalFreed += $ffFreed
+    }
+
+    # --- Opera / Opera GX (Chromium engine, but the "Stable" folder IS the profile) ---
+    $operaStables = @(
+        @{ Name = "Opera";    Path = Join-Path $env:APPDATA "Opera Software\Opera Stable" },
+        @{ Name = "Opera GX"; Path = Join-Path $env:APPDATA "Opera Software\Opera GX Stable" }
+    )
+    foreach ($opera in $operaStables) {
+        if (-not (Test-Path $opera.Path)) { continue }
+        $opFreed = [long]0
+        foreach ($cacheDir in $cacheDirs) {
+            $opFreed += Remove-PathContents (Join-Path $opera.Path $cacheDir)
+        }
+        # Opera keeps a separate on-disk Cache under LOCALAPPDATA too
+        $opFreed += Remove-PathContents (Join-Path $env:LOCALAPPDATA "$($opera.Name -replace ' ','') Software\Cache")
+        if ($opFreed -gt 0) {
+            Write-Status "$($opera.Name) cache cleaned" "OK" $opFreed
+        } else {
+            Write-Status "$($opera.Name) - no cache found" "SKIP"
+        }
+        $totalFreed += $opFreed
     }
 
     Add-CategoryResult "Browser Caches" $totalFreed
@@ -524,6 +519,63 @@ function Clean-DirectXShaderCache {
         Write-Status "DirectX shader cache - already clean" "SKIP"
     }
     Add-CategoryResult "DirectX Shader Cache" $freed
+}
+
+function Clean-GPUShaderCaches {
+    # Vendor GPU shader caches. All regenerate automatically on next use.
+    $freed = [long]0
+    $paths = @(
+        # NVIDIA
+        (Join-Path $env:LOCALAPPDATA "NVIDIA\DXCache"),
+        (Join-Path $env:LOCALAPPDATA "NVIDIA\GLCache"),
+        (Join-Path $env:LOCALAPPDATA "NVIDIA Corporation\NV_Cache"),
+        (Join-Path $env:ProgramData "NVIDIA Corporation\NV_Cache"),
+        # AMD
+        (Join-Path $env:LOCALAPPDATA "AMD\DxCache"),
+        (Join-Path $env:LOCALAPPDATA "AMD\DxcCache"),
+        (Join-Path $env:LOCALAPPDATA "AMD\GLCache"),
+        (Join-Path $env:LOCALAPPDATA "AMD\VkCache"),
+        # Intel
+        (Join-Path $env:LOCALAPPDATA "Intel\ShaderCache")
+    )
+    foreach ($p in $paths) {
+        $freed += Remove-PathContents $p
+    }
+    if ($freed -gt 0) {
+        Write-Status "GPU shader caches cleaned (NVIDIA/AMD/Intel)" "OK" $freed
+    } else {
+        Write-Status "GPU shader caches - already clean" "SKIP"
+    }
+    Add-CategoryResult "GPU Shader Caches" $freed
+}
+
+function Clean-PrintSpoolerQueue {
+    # Clears stuck/queued print jobs only (*.SPL / *.SHD). Never touches drivers.
+    # Requires stopping the Spooler service so the files unlock, then restarting it.
+    $spoolPath = Join-Path $env:SystemRoot "System32\spool\PRINTERS"
+    if (-not (Test-Path $spoolPath)) {
+        Write-Status "Print queue - not present" "SKIP"
+        Add-CategoryResult "Print Spooler Queue" 0
+        return
+    }
+    $freed = [long]0
+    $wasRunning = Stop-ServiceSafe "Spooler"
+    try {
+        foreach ($ext in @("*.SPL", "*.SHD")) {
+            Get-ChildItem -Path $spoolPath -Filter $ext -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                try { $freed += $_.Length; Remove-Item $_.FullName -Force -ErrorAction Stop } catch {}
+            }
+        }
+    } finally {
+        # Restart the spooler only if it was running before (restore prior state).
+        if ($wasRunning) { Start-ServiceSafe "Spooler" }
+    }
+    if ($freed -gt 0) {
+        Write-Status "Print spooler queue cleared" "OK" $freed
+    } else {
+        Write-Status "Print queue - already empty" "SKIP"
+    }
+    Add-CategoryResult "Print Spooler Queue" $freed
 }
 
 function Clean-RecentFiles {
@@ -1378,7 +1430,7 @@ function Invoke-DeepClean {
     # Run Quick first
     Invoke-QuickClean
 
-    $deepSteps = 14
+    $deepSteps = 16
     $i = 0
 
     Write-Host ""
@@ -1425,7 +1477,13 @@ function Invoke-DeepClean {
     Write-SectionHeader "D13/$deepSteps" "Application Caches"
     $i++; Clean-ApplicationCaches
 
-    Write-SectionHeader "D14/$deepSteps" "SSD TRIM Optimization"
+    Write-SectionHeader "D14/$deepSteps" "GPU Shader Caches"
+    $i++; Clean-GPUShaderCaches
+
+    Write-SectionHeader "D15/$deepSteps" "Print Spooler Queue"
+    $i++; Clean-PrintSpoolerQueue
+
+    Write-SectionHeader "D16/$deepSteps" "SSD TRIM Optimization"
     $i++; Invoke-SSDTrim
 }
 
@@ -1623,98 +1681,82 @@ function Show-ProcessWarning {
         Write-Host "Their caches may not fully clean while running." -ForegroundColor DarkGray -NoNewline
         Write-Host "         |" -ForegroundColor Yellow
         Write-Host "  |  " -ForegroundColor Yellow -NoNewline
-        Write-Host "Close them for best results, or continue anyway." -ForegroundColor DarkGray -NoNewline
-        Write-Host "        |" -ForegroundColor Yellow
+        Write-Host "Close them later for best results - cleaning anyway." -ForegroundColor DarkGray -NoNewline
+        Write-Host "     |" -ForegroundColor Yellow
         Write-Host "  +------------------------------------------------------------+" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "  Press Enter to continue..." -ForegroundColor DarkGray -NoNewline
-        Read-Host | Out-Null
     }
 }
 
 # ============================================================================
-# FULL MODE CONFIRMATION
+# DISCLAIMER and AUTO-CLOSE
 # ============================================================================
 
-function Confirm-FullMode {
+function Show-Disclaimer {
+    Write-Host "  " -NoNewline
+    Write-Host " DISCLAIMER " -ForegroundColor Black -BackgroundColor DarkYellow -NoNewline
+    Write-Host "  Provided AS IS. Deletes cache/temp files. Run at your own" -ForegroundColor DarkGray
+    Write-Host "               risk - the developer is not responsible for any loss or damage." -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "  +------------------------------------------------------------+" -ForegroundColor Red
-    Write-Host "  |  " -ForegroundColor Red -NoNewline
-    Write-Host "FULL MODE WARNING" -ForegroundColor White -NoNewline
-    Write-Host "                                        |" -ForegroundColor Red
-    Write-Host "  |                                                            |" -ForegroundColor Red
-    Write-Host "  |  " -ForegroundColor Red -NoNewline
-    Write-Host "Full mode includes potentially destructive operations:" -ForegroundColor DarkYellow -NoNewline
-    Write-Host "     |" -ForegroundColor Red
-    Write-Host "  |    * DISM component cleanup (removes old update files)      |" -ForegroundColor DarkGray
-    Write-Host "  |    * Event log clearing (loses diagnostic history)          |" -ForegroundColor DarkGray
-    Write-Host "  |    * Windows.old removal (no rollback to prev. version)     |" -ForegroundColor DarkGray
-    Write-Host "  |    * Restore point cleanup (reduces recovery options)       |" -ForegroundColor DarkGray
-    Write-Host "  |    * SFC system file check (long-running scan)              |" -ForegroundColor DarkGray
-    Write-Host "  |                                                            |" -ForegroundColor Red
-    Write-Host "  |  " -ForegroundColor Red -NoNewline
-    Write-Host "Destructive items will ask for confirmation individually." -ForegroundColor Gray -NoNewline
-    Write-Host "   |" -ForegroundColor Red
-    Write-Host "  +------------------------------------------------------------+" -ForegroundColor Red
+}
+
+function Close-WithCountdown {
+    param([int]$Seconds = 8, [bool]$HadError = $false)
     Write-Host ""
-    Write-Host "  Proceed with Full Clean? [Y/N]: " -ForegroundColor White -NoNewline
-    $confirm = Read-Host
-    if ($confirm -notin @("Y", "y", "Yes", "yes")) {
-        Write-Host "  Cancelled. Falling back to Deep Clean." -ForegroundColor DarkYellow
-        return $false
+    if ($HadError) {
+        Write-Host "  Something went wrong above. Press any key to close..." -ForegroundColor Yellow -NoNewline
+        try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep -Seconds 10 }
+        return
     }
-    return $true
+    for ($s = $Seconds; $s -gt 0; $s--) {
+        Write-Host "`r  Done. Closing in $s seconds... (press any key to close now)   " -ForegroundColor DarkGray -NoNewline
+        for ($t = 0; $t -lt 10; $t++) {
+            try { if ($Host.UI.RawUI.KeyAvailable) { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown"); Write-Host ""; return } } catch {}
+            Start-Sleep -Milliseconds 100
+        }
+    }
+    Write-Host ""
 }
 
 # ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================
 
+$Script:HadError = $false
+
 try {
-    # Show banner and get mode
     Show-Banner
+    Show-Disclaimer
 
-    if (-not $Mode) {
-        $Mode = Show-ModeMenu
-    }
+    # One-click default: NO menu, NO questions - run Deep (safe scope) automatically.
+    # -Mode is an advanced override only (the desktop shortcut passes nothing).
+    if (-not $Mode) { $Mode = "Deep" }
 
-    # Initialize log
     Initialize-Log
 
-    Write-Host ""
-    Write-Host "  Mode selected: " -NoNewline
+    Write-Host "  Running " -NoNewline
     $modeColor = switch ($Mode) { "Quick" { "Green" } "Deep" { "Yellow" } "Full" { "Red" } }
-    Write-Host $Mode.ToUpper() -ForegroundColor $modeColor
-    Write-Host "  Logging to: $Script:LogFile" -ForegroundColor DarkGray
+    Write-Host "$($Mode.ToUpper()) CLEAN" -ForegroundColor $modeColor -NoNewline
+    Write-Host " automatically ..." -ForegroundColor DarkGray
+    Write-Host "  Log: $Script:LogFile" -ForegroundColor DarkGray
 
-    # Process warning
+    # Informational only - never blocks. Open apps keep some caches locked.
     Show-ProcessWarning
 
-    # Full mode confirmation
-    if ($Mode -eq "Full") {
-        $proceed = Confirm-FullMode
-        if (-not $proceed) {
-            $Mode = "Deep"
-        }
-    }
-
-    # Run the selected mode
     switch ($Mode) {
         "Quick" { Invoke-QuickClean }
         "Deep"  { Invoke-DeepClean }
         "Full"  { Invoke-FullClean }
     }
 
-    # Show completion report
     Show-CompletionReport
 
 } catch {
+    $Script:HadError = $true
     Write-Host ""
     Write-Host "  [CRITICAL ERROR] $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "  Line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Red
     Write-Log "CRITICAL ERROR: $($_.Exception.Message)" "FAIL"
 } finally {
-    Write-Host ""
-    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray -NoNewline
-    Read-Host | Out-Null
+    Close-WithCountdown -Seconds 8 -HadError $Script:HadError
 }
